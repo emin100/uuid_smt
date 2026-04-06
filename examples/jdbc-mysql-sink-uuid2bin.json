@@ -1,0 +1,19 @@
+{
+  "name": "jdbc-mysql-sink-uuid2bin",
+  "config": {
+    "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
+    "tasks.max": "1",
+    "topics": "pgserver.public.items",
+    "connection.url": "jdbc:mysql://mysql:3306/appdb",
+    "connection.username": "app",
+    "connection.password": "change-me",
+    "insert.mode": "upsert",
+    "delete.enabled": "true",
+    "primary.key.mode": "record_key",
+    "database.time_zone": "UTC",
+    "transforms": "uuid2bin",
+    "transforms.uuid2bin.type": "io.debezium.uuid.UuidToBinary$Value",
+    "transforms.uuid2bin.fields": "id,tenant_id",
+    "transforms.uuid2bin.byte.order": "RFC_4122"
+  }
+}

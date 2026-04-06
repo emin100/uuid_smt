@@ -1,0 +1,2 @@
+io.debezium.uuid.BinaryToUuid$Value
+io.debezium.uuid.UuidToBinary$Value
