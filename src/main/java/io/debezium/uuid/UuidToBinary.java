@@ -34,13 +34,29 @@ public abstract class UuidToBinary<R extends ConnectRecord<R>> implements Transf
     public static final String RFC_4122 = UuidSmtConfig.RFC_4122;
     /** Write bytes in MySQL {@code UUID_TO_BIN(uuid, 1)} / Percona ordered layout. */
     public static final String MYSQL_UUID_TO_BIN_SWAP = UuidSmtConfig.MYSQL_UUID_TO_BIN_SWAP;
+    /**
+     * When &gt; 0 the UUID is written as 36-char ASCII text padded with {@code 0x00} to this width (for {@code
+     * BINARY(n)} columns that store text UUIDs, the reverse of {@link BinaryToUuid}'s padded-text input).
+     */
+    public static final String TEXT_WIDTH_CONFIG = "text.width";
 
     private static final ConfigDef CONFIG_DEF =
             UuidSmtConfig.configDef(
-                    "Comma-separated field names to convert from UUID string to 16-byte binary.");
+                            "Comma-separated field names to convert from UUID string to 16-byte binary"
+                                    + " (or padded text when text.width is set).")
+                    .define(
+                            TEXT_WIDTH_CONFIG,
+                            ConfigDef.Type.INT,
+                            0,
+                            ConfigDef.Range.atLeast(0),
+                            ConfigDef.Importance.MEDIUM,
+                            "0 (default): emit 16-byte binary per byte.order. >= 36: emit the UUID as lower-case"
+                                    + " ASCII text padded with 0x00 to this width (e.g. 255 for BINARY(255));"
+                                    + " byte.order is ignored.");
 
     private Set<String> fields;
     private UuidByteOrder byteOrderMode;
+    private int textWidth;
 
     @Override
     public void configure(Map<String, ?> configs) {
@@ -54,6 +70,11 @@ public abstract class UuidToBinary<R extends ConnectRecord<R>> implements Transf
                 UuidSmtConfig.MYSQL_UUID_TO_BIN_SWAP.equalsIgnoreCase(cfg.getString(UuidSmtConfig.BYTE_ORDER))
                         ? UuidByteOrder.MYSQL_UUID_TO_BIN_SWAP
                         : UuidByteOrder.RFC_4122;
+        textWidth = cfg.getInt(TEXT_WIDTH_CONFIG);
+        if (textWidth != 0 && textWidth < 36) {
+            throw new org.apache.kafka.common.config.ConfigException(
+                    TEXT_WIDTH_CONFIG + " must be 0 or >= 36, got " + textWidth);
+        }
     }
 
     @Override
@@ -75,7 +96,7 @@ public abstract class UuidToBinary<R extends ConnectRecord<R>> implements Transf
         if (newSchema == null || newSchema == input.schema()) {
             return record;
         }
-        Struct output = copyStruct(input, newSchema, fields, byteOrderMode);
+        Struct output = copyStruct(input, newSchema, fields, byteOrderMode, textWidth);
         return newRecord(record, newSchema, output);
     }
 
@@ -113,17 +134,22 @@ public abstract class UuidToBinary<R extends ConnectRecord<R>> implements Transf
     }
 
     static Struct copyStruct(Struct source, Schema newSchema, Set<String> fieldNames, UuidByteOrder mode) {
+        return copyStruct(source, newSchema, fieldNames, mode, 0);
+    }
+
+    static Struct copyStruct(
+            Struct source, Schema newSchema, Set<String> fieldNames, UuidByteOrder mode, int textWidth) {
         Struct dest = new Struct(newSchema);
         for (Field f : newSchema.fields()) {
             if (fieldNames.contains(f.name()) && f.schema().type() == Schema.Type.BYTES) {
                 Field oldField = source.schema().field(f.name());
                 if (oldField != null && oldField.schema().type() == Schema.Type.STRING) {
                     String s = source.getString(f.name());
-                    dest.put(f.name(), uuidStringToBytes(s, mode));
+                    dest.put(f.name(), uuidStringToBytes(s, mode, textWidth));
                 }
             } else if (f.schema().type() == Schema.Type.STRUCT) {
                 Struct nested = source.getStruct(f.name());
-                dest.put(f.name(), nested == null ? null : copyStruct(nested, f.schema(), fieldNames, mode));
+                dest.put(f.name(), nested == null ? null : copyStruct(nested, f.schema(), fieldNames, mode, textWidth));
             } else {
                 dest.put(f.name(), source.get(f));
             }
@@ -132,6 +158,10 @@ public abstract class UuidToBinary<R extends ConnectRecord<R>> implements Transf
     }
 
     static byte[] uuidStringToBytes(String s, UuidByteOrder mode) {
+        return uuidStringToBytes(s, mode, 0);
+    }
+
+    static byte[] uuidStringToBytes(String s, UuidByteOrder mode, int textWidth) {
         if (s == null) {
             return null;
         }
@@ -140,6 +170,10 @@ public abstract class UuidToBinary<R extends ConnectRecord<R>> implements Transf
             throw new org.apache.kafka.connect.errors.DataException("UUID string is empty");
         }
         UUID uuid = UUID.fromString(t);
+        if (textWidth > 0) {
+            byte[] text = uuid.toString().getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+            return java.util.Arrays.copyOf(text, textWidth); // zero-padded
+        }
         byte[] rfc = UuidBytes.uuidToRfcBytes(uuid);
         if (mode == UuidByteOrder.MYSQL_UUID_TO_BIN_SWAP) {
             UuidBytes.rfcBinaryToMysqlOrderedInPlace(rfc);

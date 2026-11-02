@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -27,6 +28,42 @@ class UuidToBinaryTest {
         String s = "550e8400-e29b-41d4-a716-446655440000";
         byte[] ordered = UuidToBinary.uuidStringToBytes(s, UuidByteOrder.MYSQL_UUID_TO_BIN_SWAP);
         assertEquals(s, BinaryToUuid.bytesToUuidString(ordered, UuidByteOrder.MYSQL_UUID_TO_BIN_SWAP));
+    }
+
+    @Test
+    void textWidth255_padsAsciiText_andRoundTrips() {
+        String s = "3FA85F64-5717-4562-B3FC-2C963F66AFA6";
+        byte[] out = UuidToBinary.uuidStringToBytes(s, UuidByteOrder.RFC_4122, 255);
+        assertEquals(255, out.length);
+        assertArrayEquals(s.toLowerCase().getBytes(java.nio.charset.StandardCharsets.US_ASCII), Arrays.copyOf(out, 36));
+        for (int i = 36; i < 255; i++) {
+            assertEquals(0, out[i]);
+        }
+        assertEquals(s.toLowerCase(), BinaryToUuid.bytesToUuidString(out, UuidByteOrder.RFC_4122));
+    }
+
+    @Test
+    void textWidth_invalidConfig_throws() {
+        UuidToBinary.Value<SourceRecord> smt = new UuidToBinary.Value<>();
+        org.junit.jupiter.api.Assertions.assertThrows(
+                org.apache.kafka.common.config.ConfigException.class,
+                () -> smt.configure(Map.of(UuidToBinary.FIELDS_CONFIG, "id", UuidToBinary.TEXT_WIDTH_CONFIG, "20")));
+    }
+
+    @Test
+    void valueTransform_textWidth_nested() {
+        Schema rowSchema = SchemaBuilder.struct().field("id", Schema.STRING_SCHEMA).optional().build();
+        Schema envelopeSchema =
+                SchemaBuilder.struct().field("before", rowSchema).field("after", rowSchema).build();
+        Struct after = new Struct(rowSchema).put("id", "11111111-2222-3333-4444-555555555555");
+        Struct value = new Struct(envelopeSchema).put("before", null).put("after", after);
+
+        UuidToBinary.Value<SourceRecord> smt = new UuidToBinary.Value<>();
+        smt.configure(Map.of(UuidToBinary.FIELDS_CONFIG, "id", UuidToBinary.TEXT_WIDTH_CONFIG, "255"));
+        SourceRecord out = smt.apply(new SourceRecord(null, null, "t", null, null, null, envelopeSchema, value));
+        byte[] id = ((Struct) out.value()).getStruct("after").getBytes("id");
+        assertEquals(255, id.length);
+        assertEquals("11111111-2222-3333-4444-555555555555", BinaryToUuid.bytesToUuidString(id, UuidByteOrder.RFC_4122));
     }
 
     @Test

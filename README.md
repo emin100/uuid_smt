@@ -61,6 +61,7 @@ Both transforms share the same options:
 | Property | Required | Description |
 |----------|----------|-------------|
 | `fields` | yes | Comma-separated logical field names to convert (must exist as the source type below). |
+| `text.width` | no | `UuidToBinary` only: `0` (default) = 16-byte binary; `>= 36` = write 36-char ASCII text padded with `0x00` to this width (e.g. `255`). |
 | `byte.order` | no | `RFC_4122` (default) or `MYSQL_UUID_TO_BIN_SWAP` (MySQL `UUID_TO_BIN(uuid, 1)` / Percona ordered layout). |
 
 ### Classes
@@ -87,6 +88,23 @@ transforms.uuid2bin.type=io.debezium.uuid.UuidToBinary$Value
 transforms.uuid2bin.fields=id,tenant_id
 transforms.uuid2bin.byte.order=RFC_4122
 ```
+
+#### PostgreSQL → MySQL for text UUIDs in `BINARY(255)`
+
+Use `text.width` so `UuidToBinary` writes the same layout that `BinaryToUuid` reads (36-char lower-case ASCII text,
+`0x00`-padded) instead of 16 raw bytes:
+
+```properties
+transforms=uuid2binKey,uuid2bin
+transforms.uuid2binKey.type=io.debezium.uuid.UuidToBinary$Key
+transforms.uuid2binKey.fields=id
+transforms.uuid2binKey.text.width=255
+transforms.uuid2bin.type=io.debezium.uuid.UuidToBinary$Value
+transforms.uuid2bin.fields=id
+transforms.uuid2bin.text.width=255
+```
+
+`text.width` must be `0` (default, 16-byte binary) or `>= 36`; `byte.order` is ignored when it is set.
 
 ### Unwrap (optional)
 
