@@ -1,0 +1,25 @@
+{
+  "name": "jdbc-pg-sink-bin2uuid-padded-text",
+  "config": {
+    "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
+    "tasks.max": "1",
+    "topics.regex": "dbserver1\\.finance\\.(.*)",
+    "connection.url": "jdbc:postgresql://postgres:5432/finance",
+    "connection.username": "app",
+    "connection.password": "change-me",
+    "insert.mode": "upsert",
+    "delete.enabled": "true",
+    "primary.key.mode": "record_key",
+    "schema.evolution": "basic",
+    "quote.identifiers": "true",
+    "database.time_zone": "UTC",
+    "transforms": "bin2uuidKey,bin2uuid,route",
+    "transforms.bin2uuidKey.type": "io.debezium.uuid.BinaryToUuid$Key",
+    "transforms.bin2uuidKey.fields": "id",
+    "transforms.bin2uuid.type": "io.debezium.uuid.BinaryToUuid$Value",
+    "transforms.bin2uuid.fields": "id",
+    "transforms.route.type": "org.apache.kafka.connect.transforms.RegexRouter",
+    "transforms.route.regex": ".*\\.(.*)",
+    "transforms.route.replacement": "$1"
+  }
+}

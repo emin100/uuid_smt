@@ -134,5 +134,7 @@ curl -sS -X POST -H "Content-Type: application/json" \
 | `examples/jdbc-postgres-sink-bin2uuid-confluent.json` | Confluent JDBC sink |
 | `examples/jdbc-mysql-sink-uuid2bin.json` | Debezium JDBC sink → MySQL + `UuidToBinary` |
 | `examples/mysql-debezium-source-bin2uuid.json` | Debezium MySQL source + `BinaryToUuid` on the value |
+| `examples/jdbc-postgres-sink-bin2uuid-padded-text.json` | MySQL `BINARY(255)` text UUID → PostgreSQL `uuid` (`$Key` + `$Value`, RegexRouter) |
+| `examples/jdbc-mysql-sink-uuid2bin-padded-text.json` | PostgreSQL `uuid` → MySQL `BINARY(255)` text UUID (`UuidToBinary` with `text.width=255`) |
 
 Edit `topics`, JDBC URLs, credentials, and `fields` to match your environment.

@@ -1,0 +1,22 @@
+{
+  "name": "jdbc-mysql-sink-uuid2bin-padded-text",
+  "config": {
+    "connector.class": "io.debezium.connector.jdbc.JdbcSinkConnector",
+    "tasks.max": "1",
+    "topics": "pgserver.finance.cards",
+    "connection.url": "jdbc:mysql://mysql:3306/finance",
+    "connection.username": "app",
+    "connection.password": "change-me",
+    "insert.mode": "upsert",
+    "delete.enabled": "true",
+    "primary.key.mode": "record_key",
+    "database.time_zone": "UTC",
+    "transforms": "uuid2binKey,uuid2bin",
+    "transforms.uuid2binKey.type": "io.debezium.uuid.UuidToBinary$Key",
+    "transforms.uuid2binKey.fields": "id",
+    "transforms.uuid2binKey.text.width": "255",
+    "transforms.uuid2bin.type": "io.debezium.uuid.UuidToBinary$Value",
+    "transforms.uuid2bin.fields": "id",
+    "transforms.uuid2bin.text.width": "255"
+  }
+}
