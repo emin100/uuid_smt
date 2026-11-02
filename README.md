@@ -4,10 +4,35 @@ Kafka Connect **Single Message Transforms (SMT)** for Debezium-style CDC: conver
 
 | SMT | Direction | Connect types |
 |-----|-----------|----------------|
-| `BinaryToUuid` | binary → text | `BYTES` → `STRING` |
+| `BinaryToUuid` | binary / padded text → text | `BYTES` → `STRING` |
 | `UuidToBinary` | text → binary | `STRING` → `BYTES` |
 
 Nested structs are handled recursively (e.g. Debezium envelope `before` / `after`).
+
+## Supported `BYTES` input (`BinaryToUuid`)
+
+The input form is detected by length, so no extra config is needed:
+
+| `BYTES` length | Interpreted as | Example column |
+|----------------|----------------|----------------|
+| exactly 16 | binary UUID, decoded per `byte.order` | `BINARY(16)` |
+| any other length | textual UUID (`8-4-4-4-12`, 36 ASCII chars), cut at the first `0x00`, returned lower-cased; `byte.order` is ignored | `BINARY(255)` holding `'3fa85f64-...'` + `0x00` padding |
+
+A 36-char text can never fit in 16 bytes, so the two forms are unambiguous. Anything that is neither
+(e.g. empty / non-UUID text) raises a `DataException` instead of passing silently.
+
+When the UUID is part of the primary key (`primary.key.mode=record_key`) also add the `$Key` variant, otherwise the
+key stays `bytea`:
+
+```properties
+transforms=bin2uuidKey,bin2uuid
+transforms.bin2uuidKey.type=io.debezium.uuid.BinaryToUuid$Key
+transforms.bin2uuidKey.fields=id
+transforms.bin2uuid.type=io.debezium.uuid.BinaryToUuid$Value
+transforms.bin2uuid.fields=id
+```
+
+`fields` matches **field names** (any `BYTES` field with that name, at any struct depth), not table names.
 
 ## Requirements
 
@@ -21,7 +46,7 @@ Nested structs are handled recursively (e.g. Debezium envelope `before` / `after
 mvn package
 ```
 
-Artifact: `target/binary-to-uuid-smt-1.0.0-SNAPSHOT.jar`
+Artifact: `target/binary-to-uuid-smt-1.1.0.jar`
 
 Run tests:
 

@@ -58,13 +58,23 @@ final class UuidBytes {
         System.arraycopy(t, 8, b, 8, 8);
     }
 
+    /**
+     * Converts a BYTES value to a canonical UUID string.
+     *
+     * <ul>
+     *   <li>exactly 16 bytes: binary UUID, decoded according to {@code mode};
+     *   <li>any other length (e.g. {@code BINARY(255)}): textual UUID (36 ASCII chars) optionally followed by
+     *       {@code 0x00} padding, see {@link #paddedTextToUuidString(byte[])}.
+     * </ul>
+     *
+     * A 36-char text can never fit in 16 bytes, so the two forms are unambiguous.
+     */
     static String bytesToUuidString(byte[] bytes, UuidByteOrder mode) {
         if (bytes == null) {
             return null;
         }
         if (bytes.length != 16) {
-            throw new org.apache.kafka.connect.errors.DataException(
-                    "Expected 16 bytes for UUID, got length " + bytes.length);
+            return paddedTextToUuidString(bytes);
         }
         if (mode == UuidByteOrder.MYSQL_UUID_TO_BIN_SWAP) {
             byte[] work = Arrays.copyOf(bytes, 16);
@@ -72,5 +82,43 @@ final class UuidBytes {
             return rfcBytesToUuidString(work);
         }
         return rfcBytesToUuidString(bytes);
+    }
+
+    /**
+     * Text UUID stored in a fixed-width binary column (MySQL {@code BINARY(n)} pads with {@code 0x00}).
+     * Cuts at the first {@code 0x00}, validates the 8-4-4-4-12 form strictly and returns it lower-cased.
+     */
+    static String paddedTextToUuidString(byte[] bytes) {
+        int end = bytes.length;
+        for (int i = 0; i < bytes.length; i++) {
+            if (bytes[i] == 0) {
+                end = i;
+                break;
+            }
+        }
+        String text = new String(bytes, 0, end, java.nio.charset.StandardCharsets.US_ASCII);
+        if (!isCanonicalUuidText(text)) {
+            throw new org.apache.kafka.connect.errors.DataException(
+                    "Expected 16-byte binary UUID or 36-char text UUID (optionally 0x00-padded), got length "
+                            + bytes.length + " with content up to first 0x00: '" + text + "'");
+        }
+        return text.toLowerCase(java.util.Locale.ROOT);
+    }
+
+    private static boolean isCanonicalUuidText(String t) {
+        if (t.length() != 36) {
+            return false;
+        }
+        for (int i = 0; i < 36; i++) {
+            char c = t.charAt(i);
+            if (i == 8 || i == 13 || i == 18 || i == 23) {
+                if (c != '-') {
+                    return false;
+                }
+            } else if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) {
+                return false;
+            }
+        }
+        return true;
     }
 }

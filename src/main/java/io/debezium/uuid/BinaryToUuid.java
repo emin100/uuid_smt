@@ -14,7 +14,8 @@ import org.apache.kafka.connect.transforms.Transformation;
 
 /**
  * Converts selected {@link Schema.Type#BYTES} fields (MySQL {@code BINARY(16)} / {@code VARBINARY(16)})
- * into canonical UUID strings for sinks such as PostgreSQL {@code UUID}.
+ * into canonical UUID strings for sinks such as PostgreSQL {@code UUID}. Also accepts a textual UUID stored in a
+ * wider fixed-width column (e.g. {@code BINARY(255)} with {@code 0x00} padding); see {@link UuidBytes}.
  *
  * <p>Recurses into nested structs (e.g. Debezium envelope {@code before} / {@code after}).
  *
@@ -35,7 +36,7 @@ public abstract class BinaryToUuid<R extends ConnectRecord<R>> implements Transf
 
     private static final ConfigDef CONFIG_DEF =
             UuidSmtConfig.configDef(
-                    "Comma-separated field names to convert from BYTES to UUID string when length is 16.");
+                    "Comma-separated field names to convert from BYTES to UUID string (16-byte binary, or 0x00-padded text UUID for any other length).");
 
     private Set<String> fields;
     private UuidByteOrder byteOrderMode;

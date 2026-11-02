@@ -6,9 +6,9 @@
 
     <groupId>io.debezium.uuid</groupId>
     <artifactId>binary-to-uuid-smt</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.1.0</version>
     <packaging>jar</packaging>
-    <name>Debezium SMT: MySQL BINARY(16) to UUID string</name>
+    <name>Debezium SMT: MySQL BINARY(16) / padded text to UUID string</name>
 
     <properties>
         <maven.compiler.release>17</maven.compiler.release>
