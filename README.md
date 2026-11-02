@@ -32,6 +32,9 @@ transforms.bin2uuid.type=io.debezium.uuid.BinaryToUuid$Value
 transforms.bin2uuid.fields=id
 ```
 
+The converted field is emitted as `STRING` with the Debezium logical name `io.debezium.data.Uuid`, so the Debezium JDBC
+sink binds it as a native `uuid` (not `varchar`).
+
 `fields` matches **field names** (any `BYTES` field with that name, at any struct depth), not table names.
 
 ## Requirements

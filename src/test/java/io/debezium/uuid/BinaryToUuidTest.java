@@ -110,6 +110,28 @@ class BinaryToUuidTest {
     }
 
     @Test
+    void convertedField_hasDebeziumUuidLogicalName_andKeepsOptionality() {
+        Schema rowSchema = SchemaBuilder.struct()
+                .field("id", Schema.BYTES_SCHEMA)
+                .field("alt", Schema.OPTIONAL_BYTES_SCHEMA)
+                .build();
+        Struct row = new Struct(rowSchema)
+                .put("id", paddedText("3fa85f64-5717-4562-b3fc-2c963f66afa6", 255))
+                .put("alt", null);
+
+        BinaryToUuid.Value<SourceRecord> smt = new BinaryToUuid.Value<>();
+        smt.configure(Map.of(BinaryToUuid.FIELDS_CONFIG, "id,alt"));
+        SourceRecord out = smt.apply(new SourceRecord(null, null, "t", null, null, null, rowSchema, row));
+
+        Schema idSchema = out.valueSchema().field("id").schema();
+        assertEquals("io.debezium.data.Uuid", idSchema.name());
+        assertEquals(Schema.Type.STRING, idSchema.type());
+        assertEquals(false, idSchema.isOptional());
+        assertEquals(true, out.valueSchema().field("alt").schema().isOptional());
+        assertNull(((Struct) out.value()).get("alt"));
+    }
+
+    @Test
     void keyTransform_paddedText() {
         Schema keySchema = SchemaBuilder.struct().field("id", Schema.BYTES_SCHEMA).build();
         Struct key = new Struct(keySchema).put("id", paddedText("3fa85f64-5717-4562-b3fc-2c963f66afa6", 255));

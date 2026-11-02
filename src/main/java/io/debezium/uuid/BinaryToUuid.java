@@ -34,6 +34,9 @@ public abstract class BinaryToUuid<R extends ConnectRecord<R>> implements Transf
     /** Matches MySQL {@code UUID_TO_BIN(uuid, 1)} layout (index-friendly swap). */
     public static final String MYSQL_UUID_TO_BIN_SWAP = UuidSmtConfig.MYSQL_UUID_TO_BIN_SWAP;
 
+    /** Same logical name as {@code io.debezium.data.Uuid}; kept as a literal to avoid a Debezium dependency. */
+    static final String UUID_LOGICAL_NAME = "io.debezium.data.Uuid";
+
     private static final ConfigDef CONFIG_DEF =
             UuidSmtConfig.configDef(
                     "Comma-separated field names to convert from BYTES to UUID string (16-byte binary, or 0x00-padded text UUID for any other length).");
@@ -94,9 +97,7 @@ public abstract class BinaryToUuid<R extends ConnectRecord<R>> implements Transf
         boolean changed = false;
         for (Field f : schema.fields()) {
             if (fieldNames.contains(f.name()) && f.schema().type() == Schema.Type.BYTES) {
-                Schema stringField =
-                        f.schema().isOptional() ? Schema.OPTIONAL_STRING_SCHEMA : Schema.STRING_SCHEMA;
-                builder.field(f.name(), stringField);
+                builder.field(f.name(), uuidStringSchema(f.schema().isOptional()));
                 changed = true;
             } else if (f.schema().type() == Schema.Type.STRUCT) {
                 Schema nested = buildSchema(f.schema(), fieldNames);
@@ -110,6 +111,19 @@ public abstract class BinaryToUuid<R extends ConnectRecord<R>> implements Transf
             }
         }
         return changed ? builder.build() : schema;
+    }
+
+    /**
+     * STRING schema tagged with the Debezium {@code io.debezium.data.Uuid} logical name, so that sinks such as the
+     * Debezium JDBC sink bind the value as a native UUID (e.g. {@code ?::uuid} on PostgreSQL) instead of
+     * {@code varchar}.
+     */
+    static Schema uuidStringSchema(boolean optional) {
+        SchemaBuilder b = SchemaBuilder.string().name(UUID_LOGICAL_NAME).version(1);
+        if (optional) {
+            b.optional();
+        }
+        return b.build();
     }
 
     static void copySchemaProps(Schema source, SchemaBuilder target) {
