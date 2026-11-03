@@ -39,8 +39,8 @@ public abstract class UuidToBinary<R extends ConnectRecord<R>> implements Transf
             UuidSmtConfig.configDef(
                     "Comma-separated field names to convert from UUID string to 16-byte binary.");
 
-    private Set<String> fields;
-    private UuidByteOrder byteOrderMode;
+    protected Set<String> fields;
+    protected UuidByteOrder byteOrderMode;
 
     @Override
     public void configure(Map<String, ?> configs) {
@@ -169,6 +169,45 @@ public abstract class UuidToBinary<R extends ConnectRecord<R>> implements Transf
 
     public static class Value<R extends ConnectRecord<R>> extends UuidToBinary<R> {
         @Override
+        public R apply(R record) {
+            Schema newValueSchema = record.valueSchema();
+            Object newValue = record.value();
+            if (record.value() instanceof Struct input) {
+                Schema built = buildSchema(input.schema(), this.fields);
+                if (built != null && built != input.schema()) {
+                    newValueSchema = built;
+                    newValue = copyStruct(input, built, this.fields, this.byteOrderMode);
+                }
+            }
+
+            Schema newKeySchema = record.keySchema();
+            Object newKey = record.key();
+            if (record.key() instanceof Struct input) {
+                Schema built = buildSchema(input.schema(), this.fields);
+                if (built != null && built != input.schema()) {
+                    newKeySchema = built;
+                    newKey = copyStruct(input, built, this.fields, this.byteOrderMode);
+                }
+            }
+
+            if (newKeySchema == record.keySchema()
+                    && newKey == record.key()
+                    && newValueSchema == record.valueSchema()
+                    && newValue == record.value()) {
+                return record;
+            }
+            return record.newRecord(
+                    record.topic(),
+                    record.kafkaPartition(),
+                    newKeySchema,
+                    newKey,
+                    newValueSchema,
+                    newValue,
+                    record.timestamp(),
+                    record.headers());
+        }
+    
+        @Override
         protected Object operatingValue(R record) {
             return record.value();
         }
@@ -186,4 +225,5 @@ public abstract class UuidToBinary<R extends ConnectRecord<R>> implements Transf
                     record.headers());
         }
     }
+
 }

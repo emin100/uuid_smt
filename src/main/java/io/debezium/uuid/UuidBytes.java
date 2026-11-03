@@ -6,7 +6,7 @@ import java.util.UUID;
 /** RFC 4122 wire encoding for 128-bit UUIDs (big-endian msb/lsb). */
 final class UuidBytes {
 
-    private static final ThreadLocal<byte[]> SWAP_SCRATCH = ThreadLocal.withInitial(() -> new byte[16]);
+    private static final ThreadLocal<byte[]> SWAP_SCRATCH = ThreadLocal.withInitial(() -> new byte[255]);
 
     private UuidBytes() {}
 
@@ -62,9 +62,9 @@ final class UuidBytes {
         if (bytes == null) {
             return null;
         }
-        if (bytes.length != 16) {
+        if (bytes.length < 16) {
             throw new org.apache.kafka.connect.errors.DataException(
-                    "Expected 16 bytes for UUID, got length " + bytes.length);
+                    "Expected at least 16 bytes for UUID, got length " + bytes.length);
         }
         if (mode == UuidByteOrder.MYSQL_UUID_TO_BIN_SWAP) {
             byte[] work = Arrays.copyOf(bytes, 16);
