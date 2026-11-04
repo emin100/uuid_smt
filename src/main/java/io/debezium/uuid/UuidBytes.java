@@ -62,9 +62,9 @@ final class UuidBytes {
         if (bytes == null) {
             return null;
         }
-        if (bytes.length < 16) {
-            throw new org.apache.kafka.connect.errors.DataException(
-                    "Expected at least 16 bytes for UUID, got length " + bytes.length);
+        if (bytes.length != 16) {
+            // BINARY(255) gibi alanlar: 36 karakterlik ASCII metin UUID + 0x00 dolgu
+            return textBytesToUuidString(bytes);
         }
         if (mode == UuidByteOrder.MYSQL_UUID_TO_BIN_SWAP) {
             byte[] work = Arrays.copyOf(bytes, 16);
@@ -72,5 +72,30 @@ final class UuidBytes {
             return rfcBytesToUuidString(work);
         }
         return rfcBytesToUuidString(bytes);
+    }
+
+    /**
+     * 0x00 dolgulu metin UUID ({@code 8-4-4-4-12}, 36 ASCII karakter) -> kucuk harfli UUID string.
+     * Gecersiz ise sessizce gecmez, DataException firlatir.
+     */
+    static String textBytesToUuidString(byte[] bytes) {
+        int end = 0;
+        while (end < bytes.length && bytes[end] != 0) {
+            end++;
+        }
+        String text = new String(bytes, 0, end, java.nio.charset.StandardCharsets.US_ASCII).toLowerCase(java.util.Locale.ROOT);
+        if (text.length() != 36
+                || text.charAt(8) != '-'
+                || text.charAt(13) != '-'
+                || text.charAt(18) != '-'
+                || text.charAt(23) != '-') {
+            throw new org.apache.kafka.connect.errors.DataException(
+                    "Expected 16 raw bytes or a 36-char text UUID, got length " + bytes.length + " value: " + text);
+        }
+        try {
+            return UUID.fromString(text).toString();
+        } catch (IllegalArgumentException e) {
+            throw new org.apache.kafka.connect.errors.DataException("Invalid UUID text: " + text, e);
+        }
     }
 }
