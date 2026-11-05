@@ -93,8 +93,12 @@ public abstract class BinaryToUuid<R extends ConnectRecord<R>> implements Transf
         boolean changed = false;
         for (Field f : schema.fields()) {
             if (fieldNames.contains(f.name()) && f.schema().type() == Schema.Type.BYTES) {
-                Schema stringField =
-                        f.schema().isOptional() ? Schema.OPTIONAL_STRING_SCHEMA : Schema.STRING_SCHEMA;
+                // Sink (Debezium JDBC) ::uuid cast'ini yalnizca bu mantiksal ad varsa ekler.
+                SchemaBuilder uuidField = SchemaBuilder.string().name("io.debezium.data.Uuid");
+                if (f.schema().isOptional()) {
+                    uuidField.optional();
+                }
+                Schema stringField = uuidField.build();
                 builder.field(f.name(), stringField);
                 changed = true;
             } else if (f.schema().type() == Schema.Type.STRUCT) {
